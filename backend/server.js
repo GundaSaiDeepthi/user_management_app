@@ -1,54 +1,116 @@
 import cors from "cors";
-import exp from 'express';
-import { connect } from 'mongoose';
-import { config } from 'dotenv';
-import { UserApp } from './APIs/UserAPI.js';
+import exp from "express";
+import mongoose from "mongoose";
+import { config } from "dotenv";
+import { UserApp } from "./APIs/UserAPI.js";
 
-//Read environmental variables
+// Load environment variables
 config();
-//Create HTTP Server
-const app=exp();
-app.use(cors());
-//Add body parser middleware
-app.use(exp.json())
-//forward req to UserAPI if path starts with /user-api
-app.use("/user-api",UserApp);
-//connect to DB
-async function connectDB() {
-    try{
-        await connect(process.env.DB_URL);
-        console.log("Connected to DataBase")
-        //assign port number
-        
- app.listen(process.env.PORT, () => console.log(`server started on port ${process.env.PORT}`));
-    }catch(err){
-        console.log("Error in connecting DB:",err)
-    }
-}
-connectDB()
 
-//Add error handling middleware
+// Create Express app
+const app = exp();
+
+
+// ======================
+// MIDDLEWARES
+// ======================
+
+// Enable CORS
+app.use(cors());
+
+// Parse JSON data
+app.use(exp.json());
+
+
+// ======================
+// ROUTES
+// ======================
+
+// Default Route
+app.get("/", (req, res) => {
+  res.send({
+    message: "Server Running Successfully",
+  });
+});
+
+// User Routes
+app.use("/user-api", UserApp);
+
+
+// ======================
+// DATABASE CONNECTION
+// ======================
+
+async function connectDB() {
+  try {
+
+    // Connect MongoDB
+    await mongoose.connect(process.env.DB_URL);
+
+    console.log("Database Connected Successfully");
+
+    // Start Server
+    app.listen(process.env.PORT, () => {
+      console.log(`Server started on port ${process.env.PORT}`);
+    });
+
+  } catch (err) {
+
+    console.log("Error in DB Connection:", err.message);
+
+  }
+}
+
+// Call DB Function
+connectDB();
+
+
+// ======================
+// 404 ROUTE HANDLER
+// ======================
+
+app.use((req, res) => {
+  res.status(404).send({
+    message: "Route Not Found",
+  });
+});
+
+
+// ======================
+// GLOBAL ERROR HANDLER
+// ======================
+
 app.use((err, req, res, next) => {
-  // Mongoose validation error
+
+  console.log("Error:", err);
+
+  // Validation Error
   if (err.name === "ValidationError") {
     return res.status(400).json({
-      message: "Validation failed",
+      message: "Validation Failed",
       errors: err.errors,
     });
   }
-  // Invalid ObjectId
+
+  // Invalid MongoDB ObjectId
   if (err.name === "CastError") {
     return res.status(400).json({
-      message: "Invalid ID format",
+      message: "Invalid ID Format",
     });
   }
-  // Duplicate key
+
+  // Duplicate Key Error
   if (err.code === 11000) {
     return res.status(409).json({
-      message: "Duplicate field value",
+      message: "Duplicate Field Value",
+      keyValue: err.keyValue,
     });
   }
+
+  // Default Server Error
   res.status(500).json({
     message: "Internal Server Error",
+    reason: err.message,
   });
+
 });
